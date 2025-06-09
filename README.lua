@@ -6,17 +6,15 @@ local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
 local GUI_NAME = "Samu Fly GUI"
-local RGB_SPEED = 0.05 -- RGB mucho más rápido para los efectos de flash
+local RGB_SPEED = 0.01 
 local FLY_SPEED_VALUE = 50 
 local MAX_FLY_SPEED = 150 
 local MIN_FLY_SPEED = 10 
 local SPEED_INCREMENT = 10 
 
 local TWEEN_INFO_GENERAL = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, 0, false, 0)
-local ANIM_DURATION_FLASH = 0.3 -- Duración de los flashes de RGB
 
 local Z_INDEX_GUI = 2 
-local Z_INDEX_FLASH = 10 -- Mayor ZIndex para que el flash esté por encima
 
 local expandedSize = UDim2.new(0.6, 0, 0.35, 0) 
 local expandedPosition = UDim2.new(0.2, 0, 0.3, 0) 
@@ -35,6 +33,7 @@ local connections = {}
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "SamuFlyGUIMain"
 screenGui.Parent = PlayerGui
+screenGui.Enabled = false 
 
 local mainFrame = Instance.new("Frame")
 mainFrame.Name = "MainFrame"
@@ -43,7 +42,7 @@ mainFrame.Position = expandedPosition
 mainFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 mainFrame.BorderSizePixel = 0
 mainFrame.Parent = screenGui
-mainFrame.BackgroundTransparency = 1 -- Empieza invisible para la animación de entrada
+mainFrame.BackgroundTransparency = 0 
 mainFrame.Active = true
 mainFrame.Draggable = true
 mainFrame.ZIndex = Z_INDEX_GUI 
@@ -458,48 +457,7 @@ local function shutdownScript()
     mainFrame.Active = false
     mainFrame.Draggable = false
 
-    local screenFlash = Instance.new("Frame")
-    screenFlash.Name = "ShutdownFlash"
-    screenFlash.Size = UDim2.new(1, 0, 1, 0)
-    screenFlash.Position = UDim2.new(0, 0, 0, 0)
-    screenFlash.BackgroundColor3 = Color3.fromRGB(0, 0, 0) -- Color inicial (será RGB)
-    screenFlash.BackgroundTransparency = 1 -- Empieza transparente
-    screenFlash.BorderSizePixel = 0
-    screenFlash.ZIndex = Z_INDEX_FLASH
-    screenFlash.Parent = PlayerGui
-
-    -- Temporarily increase RGB speed for the flash effect
-    local originalRgbSpeed = RGB_SPEED
-    RGB_SPEED = 0.5 -- Mucho más rápido para el flash
-
-    -- Fade in the flash with RGB
-    local flashTweenIn = TweenService:Create(screenFlash, TweenInfo.new(ANIM_DURATION_FLASH / 2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-        BackgroundTransparency = 0 
-    })
-    flashTweenIn:Play()
-    flashTweenIn.Completed:Wait()
-
-    -- Fade out the flash
-    local flashTweenOut = TweenService:Create(screenFlash, TweenInfo.new(ANIM_DURATION_FLASH / 2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-        BackgroundTransparency = 1 
-    })
-    flashTweenOut:Play()
-
-    local guiFadeOutTween = TweenService:Create(mainFrame, TweenInfo.new(ANIM_DURATION_FLASH, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-        BackgroundTransparency = 1, 
-        Transparency = 1, -- Esto también hará que los elementos hijos se desvanezcan
-        Size = UDim2.new(0, 0, 0, 0), -- Encoger
-        Position = UDim2.new(0.5, 0, 0.5, 0) -- Al centro
-    })
-    guiFadeOutTween:Play()
-
-    flashTweenOut.Completed:Wait()
-    guiFadeOutTween.Completed:Wait()
-
-    -- Restore original RGB speed
-    RGB_SPEED = originalRgbSpeed
-
-    screenFlash:Destroy()
+    screenGui.Enabled = false 
 
     for _, conn in ipairs(connections) do
         if conn and typeof(conn) == "RBXScriptConnection" then
@@ -513,50 +471,8 @@ local function shutdownScript()
     end
 end
 
-local function animateEntrance()
-    local screenFlash = Instance.new("Frame")
-    screenFlash.Name = "EntranceFlash"
-    screenFlash.Size = UDim2.new(1, 0, 1, 0)
-    screenFlash.Position = UDim2.new(0, 0, 0, 0)
-    screenFlash.BackgroundColor3 = Color3.fromRGB(0, 0, 0) -- Color inicial (será RGB)
-    screenFlash.BackgroundTransparency = 1 -- Empieza transparente
-    screenFlash.BorderSizePixel = 0
-    screenFlash.ZIndex = Z_INDEX_FLASH
-    screenFlash.Parent = PlayerGui
-
-    -- Temporarily increase RGB speed for the flash effect
-    local originalRgbSpeed = RGB_SPEED
-    RGB_SPEED = 0.5 -- Mucho más rápido para el flash
-
-    -- Fade in the flash with RGB
-    local flashTweenIn = TweenService:Create(screenFlash, TweenInfo.new(ANIM_DURATION_FLASH / 2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-        BackgroundTransparency = 0 
-    })
-    flashTweenIn:Play()
-    flashTweenIn.Completed:Wait()
-
-    -- Fade out the flash
-    local flashTweenOut = TweenService:Create(screenFlash, TweenInfo.new(ANIM_DURATION_FLASH / 2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-        BackgroundTransparency = 1 
-    })
-    flashTweenOut:Play()
-
-    local guiFadeInTween = TweenService:Create(mainFrame, TweenInfo.new(ANIM_DURATION_FLASH, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-        BackgroundTransparency = 0 
-    })
-    guiFadeInTween:Play()
-    
-    flashTweenOut.Completed:Wait()
-    guiFadeInTween.Completed:Wait() 
-
-    -- Restore original RGB speed
-    RGB_SPEED = originalRgbSpeed
-
-    screenFlash:Destroy()
-end
-
 connections[#connections + 1] = minimizeButton.MouseButton1Click:Connect(minimizeGUI)
 connections[#connections + 1] = restoreButton.MouseButton1Click:Connect(restoreGUI)
 connections[#connections + 1] = shutdownButton.MouseButton1Click:Connect(shutdownScript)
 
-animateEntrance()
+screenGui.Enabled = true 
