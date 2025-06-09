@@ -6,19 +6,17 @@ local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
 local GUI_NAME = "Samu Fly GUI"
-local RGB_SPEED = 0.01
+local RGB_SPEED = 0.05 -- RGB mucho más rápido para los efectos de flash
 local FLY_SPEED_VALUE = 50 
 local MAX_FLY_SPEED = 150 
 local MIN_FLY_SPEED = 10 
 local SPEED_INCREMENT = 10 
 
 local TWEEN_INFO_GENERAL = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, 0, false, 0)
-local TRASH_ANIM_DURATION = 0.5
-
-local LIGHT_ANIM_DURATION = 0.8
+local ANIM_DURATION_FLASH = 0.3 -- Duración de los flashes de RGB
 
 local Z_INDEX_GUI = 2 
-local Z_INDEX_ANIM = 10 
+local Z_INDEX_FLASH = 10 -- Mayor ZIndex para que el flash esté por encima
 
 local expandedSize = UDim2.new(0.6, 0, 0.35, 0) 
 local expandedPosition = UDim2.new(0.2, 0, 0.3, 0) 
@@ -45,7 +43,7 @@ mainFrame.Position = expandedPosition
 mainFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 mainFrame.BorderSizePixel = 0
 mainFrame.Parent = screenGui
-mainFrame.BackgroundTransparency = 1 
+mainFrame.BackgroundTransparency = 1 -- Empieza invisible para la animación de entrada
 mainFrame.Active = true
 mainFrame.Draggable = true
 mainFrame.ZIndex = Z_INDEX_GUI 
@@ -460,37 +458,48 @@ local function shutdownScript()
     mainFrame.Active = false
     mainFrame.Draggable = false
 
-    local trashCan = Instance.new("ImageLabel")
-    trashCan.Name = "TrashCanAnim"
-    trashCan.Size = UDim2.new(0.3, 0, 0.4, 0)
-    trashCan.Position = UDim2.new(-trashCan.Size.X.Scale, 0, 0.3, 0) 
-    trashCan.BackgroundTransparency = 1
-    trashCan.Image = "rbxassetid://13217277873" 
-    trashCan.ScaleType = Enum.ScaleType.Fit
-    trashCan.ZIndex = Z_INDEX_ANIM
-    trashCan.Parent = PlayerGui
+    local screenFlash = Instance.new("Frame")
+    screenFlash.Name = "ShutdownFlash"
+    screenFlash.Size = UDim2.new(1, 0, 1, 0)
+    screenFlash.Position = UDim2.new(0, 0, 0, 0)
+    screenFlash.BackgroundColor3 = Color3.fromRGB(0, 0, 0) -- Color inicial (será RGB)
+    screenFlash.BackgroundTransparency = 1 -- Empieza transparente
+    screenFlash.BorderSizePixel = 0
+    screenFlash.ZIndex = Z_INDEX_FLASH
+    screenFlash.Parent = PlayerGui
 
-    task.wait(0.1) 
-    local trashTween = TweenService:Create(trashCan, TweenInfo.new(TRASH_ANIM_DURATION / 2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = UDim2.new(0.05, 0, 0.3, 0)})
-    trashTween:Play()
-    trashTween.Completed:Wait()
+    -- Temporarily increase RGB speed for the flash effect
+    local originalRgbSpeed = RGB_SPEED
+    RGB_SPEED = 0.5 -- Mucho más rápido para el flash
 
-    local trashCanAbsPos = trashCan.AbsolutePosition
-    local trashCanAbsSize = trashCan.AbsoluteSize
-    
-    local targetXPixel = trashCanAbsPos.X + trashCanAbsSize.X / 2 - (mainFrame.AbsoluteSize.X * 0.05 / 2)
-    local targetYPixel = trashCanAbsPos.Y + trashCanAbsSize.Y / 2 - (mainFrame.AbsoluteSize.Y * 0.05 / 2)
-
-    local guiToTrashTween = TweenService:Create(mainFrame, TweenInfo.new(TRASH_ANIM_DURATION / 2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-        Position = UDim2.new(0, targetXPixel, 0, targetYPixel), 
-        Size = UDim2.new(0.05, 0, 0.05, 0),
-        BackgroundTransparency = 1, 
-        Transparency = 1 
+    -- Fade in the flash with RGB
+    local flashTweenIn = TweenService:Create(screenFlash, TweenInfo.new(ANIM_DURATION_FLASH / 2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+        BackgroundTransparency = 0 
     })
-    guiToTrashTween:Play()
-    guiToTrashTween.Completed:Wait()
+    flashTweenIn:Play()
+    flashTweenIn.Completed:Wait()
 
-    trashCan:Destroy()
+    -- Fade out the flash
+    local flashTweenOut = TweenService:Create(screenFlash, TweenInfo.new(ANIM_DURATION_FLASH / 2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+        BackgroundTransparency = 1 
+    })
+    flashTweenOut:Play()
+
+    local guiFadeOutTween = TweenService:Create(mainFrame, TweenInfo.new(ANIM_DURATION_FLASH, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+        BackgroundTransparency = 1, 
+        Transparency = 1, -- Esto también hará que los elementos hijos se desvanezcan
+        Size = UDim2.new(0, 0, 0, 0), -- Encoger
+        Position = UDim2.new(0.5, 0, 0.5, 0) -- Al centro
+    })
+    guiFadeOutTween:Play()
+
+    flashTweenOut.Completed:Wait()
+    guiFadeOutTween.Completed:Wait()
+
+    -- Restore original RGB speed
+    RGB_SPEED = originalRgbSpeed
+
+    screenFlash:Destroy()
 
     for _, conn in ipairs(connections) do
         if conn and typeof(conn) == "RBXScriptConnection" then
@@ -505,47 +514,45 @@ local function shutdownScript()
 end
 
 local function animateEntrance()
-    local brightLight = Instance.new("Frame")
-    brightLight.Name = "EntranceLight"
-    brightLight.Size = UDim2.new(1, 0, 0.1, 0)
-    brightLight.Position = UDim2.new(0, 0, -0.1, 0)
-    brightLight.BackgroundColor3 = Color3.fromRGB(255, 255, 0)
-    brightLight.BackgroundTransparency = 1
-    brightLight.BorderSizePixel = 0
-    brightLight.ZIndex = Z_INDEX_ANIM
-    brightLight.Parent = PlayerGui
+    local screenFlash = Instance.new("Frame")
+    screenFlash.Name = "EntranceFlash"
+    screenFlash.Size = UDim2.new(1, 0, 1, 0)
+    screenFlash.Position = UDim2.new(0, 0, 0, 0)
+    screenFlash.BackgroundColor3 = Color3.fromRGB(0, 0, 0) -- Color inicial (será RGB)
+    screenFlash.BackgroundTransparency = 1 -- Empieza transparente
+    screenFlash.BorderSizePixel = 0
+    screenFlash.ZIndex = Z_INDEX_FLASH
+    screenFlash.Parent = PlayerGui
 
-    local lightTween1 = TweenService:Create(brightLight, TweenInfo.new(LIGHT_ANIM_DURATION * 0.7, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-        Position = UDim2.new(0.05, 0, 0.05, 0), 
-        Size = UDim2.new(0.9, 0, 0.9, 0),      
-        BackgroundTransparency = 0.5
+    -- Temporarily increase RGB speed for the flash effect
+    local originalRgbSpeed = RGB_SPEED
+    RGB_SPEED = 0.5 -- Mucho más rápido para el flash
+
+    -- Fade in the flash with RGB
+    local flashTweenIn = TweenService:Create(screenFlash, TweenInfo.new(ANIM_DURATION_FLASH / 2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+        BackgroundTransparency = 0 
     })
-    lightTween1:Play()
-    lightTween1.Completed:Wait()
+    flashTweenIn:Play()
+    flashTweenIn.Completed:Wait()
 
-    local lightTween2 = TweenService:Create(brightLight, TweenInfo.new(LIGHT_ANIM_DURATION * 0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-        Size = UDim2.new(1, 0, 1, 0), 
-        BackgroundTransparency = 0,    
-        BackgroundColor3 = Color3.fromRGB(255, 255, 100)
+    -- Fade out the flash
+    local flashTweenOut = TweenService:Create(screenFlash, TweenInfo.new(ANIM_DURATION_FLASH / 2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+        BackgroundTransparency = 1 
     })
-    lightTween2:Play()
-    lightTween2.Completed:Wait()
+    flashTweenOut:Play()
 
-    local lightTween3 = TweenService:Create(brightLight, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-        BackgroundTransparency = 1, 
-        Size = UDim2.new(1,0,0,0)  
-    })
-    lightTween3:Play()
-
-    local guiFadeInTween = TweenService:Create(mainFrame, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+    local guiFadeInTween = TweenService:Create(mainFrame, TweenInfo.new(ANIM_DURATION_FLASH, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
         BackgroundTransparency = 0 
     })
     guiFadeInTween:Play()
     
-    lightTween3.Completed:Wait()
+    flashTweenOut.Completed:Wait()
     guiFadeInTween.Completed:Wait() 
 
-    brightLight:Destroy()
+    -- Restore original RGB speed
+    RGB_SPEED = originalRgbSpeed
+
+    screenFlash:Destroy()
 end
 
 connections[#connections + 1] = minimizeButton.MouseButton1Click:Connect(minimizeGUI)
