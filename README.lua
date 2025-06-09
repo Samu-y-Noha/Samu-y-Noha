@@ -6,18 +6,22 @@ local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
 local GUI_NAME = "Samu Fly GUI"
-local RGB_SPEED = 0.005
-local FLY_SPEED_VALUE = 50
-local MAX_FLY_SPEED = 100
+local RGB_SPEED = 0.01
+local FLY_SPEED_VALUE = 50 
+local MAX_FLY_SPEED = 150 
+local MIN_FLY_SPEED = 10 
+local SPEED_INCREMENT = 10 
 
 local TWEEN_INFO_GENERAL = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, 0, false, 0)
 local TRASH_ANIM_DURATION = 0.5
 
 local LIGHT_ANIM_DURATION = 0.8
-local LIGHT_BRIGHTNESS = 2
 
-local expandedSize = UDim2.new(0.4, 0, 0.32, 0)
-local expandedPosition = UDim2.new(0.3, 0, 0.25, 0)
+local Z_INDEX_GUI = 2 
+local Z_INDEX_ANIM = 10 
+
+local expandedSize = UDim2.new(0.6, 0, 0.35, 0) 
+local expandedPosition = UDim2.new(0.2, 0, 0.3, 0) 
 
 local minimizedSize = UDim2.new(0.5, 0, 0.05, 0)
 local minimizedPosition = UDim2.new(0.25, 0, 0.95, 0)
@@ -41,9 +45,10 @@ mainFrame.Position = expandedPosition
 mainFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 mainFrame.BorderSizePixel = 0
 mainFrame.Parent = screenGui
-mainFrame.Visible = false
+mainFrame.BackgroundTransparency = 1 
 mainFrame.Active = true
 mainFrame.Draggable = true
+mainFrame.ZIndex = Z_INDEX_GUI 
 
 local uiCorner = Instance.new("UICorner")
 uiCorner.CornerRadius = UDim.new(0, 8)
@@ -51,7 +56,7 @@ uiCorner.Parent = mainFrame
 
 local titleBar = Instance.new("Frame")
 titleBar.Name = "TitleBar"
-titleBar.Size = UDim2.new(1, 0, 0.15, 0)
+titleBar.Size = UDim2.new(1, 0, 0.15, 0) 
 titleBar.Position = UDim2.new(0, 0, 0, 0)
 titleBar.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 titleBar.BorderSizePixel = 0
@@ -87,24 +92,39 @@ minCorner.Parent = minimizeButton
 
 local contentFrame = Instance.new("Frame")
 contentFrame.Name = "ContentFrame"
-contentFrame.Size = UDim2.new(1, 0, 0.85, 0)
+contentFrame.Size = UDim2.new(1, 0, 0.85, 0) 
 contentFrame.Position = UDim2.new(0, 0, 0.15, 0)
 contentFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 contentFrame.BorderSizePixel = 0
 contentFrame.Parent = mainFrame
 contentFrame.ClipsDescendants = true
 
+local buttonLayoutFrame = Instance.new("Frame")
+buttonLayoutFrame.Name = "ButtonLayout"
+buttonLayoutFrame.Size = UDim2.new(0.9, 0, 0.9, 0)
+buttonLayoutFrame.Position = UDim2.new(0.05, 0, 0.05, 0)
+buttonLayoutFrame.BackgroundTransparency = 1
+buttonLayoutFrame.Parent = contentFrame
+
+local listLayout = Instance.new("UIListLayout")
+listLayout.FillDirection = Enum.FillDirection.Horizontal 
+listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+listLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+listLayout.Padding = UDim.new(0.02, 0) 
+listLayout.SortOrder = Enum.SortOrder.LayoutOrder 
+listLayout.Parent = buttonLayoutFrame
+
 local toggleButton = Instance.new("TextButton")
 toggleButton.Name = "ToggleButton"
-toggleButton.Size = UDim2.new(0.8, 0, 0.28, 0)
-toggleButton.Position = UDim2.new(0.1, 0, 0.05, 0)
+toggleButton.Size = UDim2.new(0.2, 0, 0.8, 0) 
+toggleButton.LayoutOrder = 1 
 toggleButton.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
 toggleButton.Text = "Pulsa aquí (Ejemplo)"
 toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 toggleButton.TextScaled = true
 toggleButton.Font = Enum.Font.SourceSansBold
 toggleButton.BorderSizePixel = 0
-toggleButton.Parent = contentFrame
+toggleButton.Parent = buttonLayoutFrame 
 
 local buttonCorner = Instance.new("UICorner")
 buttonCorner.CornerRadius = UDim.new(0, 6)
@@ -124,31 +144,63 @@ end)
 
 local flyToggleBtn = Instance.new("TextButton")
 flyToggleBtn.Name = "ToggleFlyButton"
-flyToggleBtn.Size = UDim2.new(0.8, 0, 0.28, 0)
-flyToggleBtn.Position = UDim2.new(0.1, 0, 0.38, 0)
+flyToggleBtn.Size = UDim2.new(0.2, 0, 0.8, 0)
+flyToggleBtn.LayoutOrder = 2
 flyToggleBtn.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
 flyToggleBtn.Text = "Vuelo: OFF"
 flyToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 flyToggleBtn.TextScaled = true
 flyToggleBtn.Font = Enum.Font.SourceSansBold
 flyToggleBtn.BorderSizePixel = 0
-flyToggleBtn.Parent = contentFrame
+flyToggleBtn.Parent = buttonLayoutFrame 
 
 local flyBtnCorner = Instance.new("UICorner")
 flyBtnCorner.CornerRadius = UDim.new(0, 6)
 flyBtnCorner.Parent = flyToggleBtn
 
+local increaseSpeedButton = Instance.new("TextButton")
+increaseSpeedButton.Name = "IncreaseSpeedButton"
+increaseSpeedButton.Size = UDim2.new(0.2, 0, 0.8, 0)
+increaseSpeedButton.LayoutOrder = 3
+increaseSpeedButton.BackgroundColor3 = Color3.fromRGB(100, 150, 100)
+increaseSpeedButton.Text = "Aumentar Velocidad (" .. FLY_SPEED_VALUE .. ")"
+increaseSpeedButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+increaseSpeedButton.TextScaled = true
+increaseSpeedButton.Font = Enum.Font.SourceSansBold
+increaseSpeedButton.BorderSizePixel = 0
+increaseSpeedButton.Parent = buttonLayoutFrame 
+
+local increaseSpeedCorner = Instance.new("UICorner")
+increaseSpeedCorner.CornerRadius = UDim.new(0, 6)
+increaseSpeedCorner.Parent = increaseSpeedButton
+
+local decreaseSpeedButton = Instance.new("TextButton")
+decreaseSpeedButton.Name = "DecreaseSpeedButton"
+decreaseSpeedButton.Size = UDim2.new(0.2, 0, 0.8, 0)
+decreaseSpeedButton.LayoutOrder = 4
+decreaseSpeedButton.BackgroundColor3 = Color3.fromRGB(150, 100, 100)
+decreaseSpeedButton.Text = "Disminuir Velocidad (" .. FLY_SPEED_VALUE .. ")"
+decreaseSpeedButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+decreaseSpeedButton.TextScaled = true
+decreaseSpeedButton.Font = Enum.Font.SourceSansBold
+decreaseSpeedButton.BorderSizePixel = 0
+decreaseSpeedButton.Parent = buttonLayoutFrame 
+
+local decreaseSpeedCorner = Instance.new("UICorner")
+decreaseSpeedCorner.CornerRadius = UDim.new(0, 6)
+decreaseSpeedCorner.Parent = decreaseSpeedButton
+
 local shutdownButton = Instance.new("TextButton")
 shutdownButton.Name = "ShutdownButton"
-shutdownButton.Size = UDim2.new(0.8, 0, 0.28, 0)
-shutdownButton.Position = UDim2.new(0.1, 0, 0.71, 0)
+shutdownButton.Size = UDim2.new(0.2, 0, 0.8, 0)
+shutdownButton.LayoutOrder = 5
 shutdownButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
 shutdownButton.Text = "Apagar Script"
 shutdownButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 shutdownButton.TextScaled = true
 shutdownButton.Font = Enum.Font.SourceSansBold
 shutdownButton.BorderSizePixel = 0
-shutdownButton.Parent = contentFrame
+shutdownButton.Parent = buttonLayoutFrame 
 
 local shutdownBtnCorner = Instance.new("UICorner")
 shutdownBtnCorner.CornerRadius = UDim.new(0, 6)
@@ -210,6 +262,11 @@ local function restoreGUI()
     contentFrame.Visible = true
     titleBar.Visible = true
     minimizedBar.Visible = false
+end
+
+local function updateSpeedButtonText()
+    increaseSpeedButton.Text = "Aumentar Velocidad (" .. FLY_SPEED_VALUE .. ")"
+    decreaseSpeedButton.Text = "Disminuir Velocidad (" .. FLY_SPEED_VALUE .. ")"
 end
 
 local function enableFly()
@@ -319,6 +376,16 @@ connections[#connections + 1] = flyToggleBtn.MouseButton1Click:Connect(function(
     end
 end)
 
+connections[#connections + 1] = increaseSpeedButton.MouseButton1Click:Connect(function()
+    FLY_SPEED_VALUE = math.min(MAX_FLY_SPEED, FLY_SPEED_VALUE + SPEED_INCREMENT)
+    updateSpeedButtonText()
+end)
+
+connections[#connections + 1] = decreaseSpeedButton.MouseButton1Click:Connect(function()
+    FLY_SPEED_VALUE = math.max(MIN_FLY_SPEED, FLY_SPEED_VALUE - SPEED_INCREMENT)
+    updateSpeedButtonText()
+end)
+
 local flyRenderSteppedConnection = RunService.RenderStepped:Connect(function()
     if isFlyActive and LocalPlayer.Character then
         local char = LocalPlayer.Character
@@ -372,7 +439,7 @@ local rgbRenderSteppedConnection = RunService.RenderStepped:Connect(function(dt)
     if hue > 1 then
         hue = hue - 1
     end
-    local rgbColor = Color3.fromHSV(hue, 1, 1)
+    local rgbColor = Color3.fromHSV(hue, 1, 1) 
 
     if titleLabel then
         titleLabel.TextColor3 = rgbColor
@@ -396,13 +463,14 @@ local function shutdownScript()
     local trashCan = Instance.new("ImageLabel")
     trashCan.Name = "TrashCanAnim"
     trashCan.Size = UDim2.new(0.3, 0, 0.4, 0)
-    trashCan.Position = UDim2.new(-trashCan.Size.X.Scale, 0, 0.3, 0)
+    trashCan.Position = UDim2.new(-trashCan.Size.X.Scale, 0, 0.3, 0) 
     trashCan.BackgroundTransparency = 1
-    trashCan.Image = "rbxassetid://13217277873"
+    trashCan.Image = "rbxassetid://13217277873" 
     trashCan.ScaleType = Enum.ScaleType.Fit
-    trashCan.ZIndex = 10
+    trashCan.ZIndex = Z_INDEX_ANIM
     trashCan.Parent = PlayerGui
 
+    task.wait(0.1) 
     local trashTween = TweenService:Create(trashCan, TweenInfo.new(TRASH_ANIM_DURATION / 2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = UDim2.new(0.05, 0, 0.3, 0)})
     trashTween:Play()
     trashTween.Completed:Wait()
@@ -410,14 +478,14 @@ local function shutdownScript()
     local trashCanAbsPos = trashCan.AbsolutePosition
     local trashCanAbsSize = trashCan.AbsoluteSize
     
-    local targetXOffset = trashCanAbsPos.X + trashCanAbsSize.X / 2 - mainFrame.AbsoluteSize.X / 2
-    local targetYOffset = trashCanAbsPos.Y + trashCanAbsSize.Y / 2 - mainFrame.AbsoluteSize.Y / 2
+    local targetXPixel = trashCanAbsPos.X + trashCanAbsSize.X / 2 - (mainFrame.AbsoluteSize.X * 0.05 / 2)
+    local targetYPixel = trashCanAbsPos.Y + trashCanAbsSize.Y / 2 - (mainFrame.AbsoluteSize.Y * 0.05 / 2)
 
     local guiToTrashTween = TweenService:Create(mainFrame, TweenInfo.new(TRASH_ANIM_DURATION / 2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-        Position = UDim2.new(0, targetXOffset, 0, targetYOffset),
+        Position = UDim2.new(0, targetXPixel, 0, targetYPixel), 
         Size = UDim2.new(0.05, 0, 0.05, 0),
-        BackgroundTransparency = 1,
-        Transparency = 1
+        BackgroundTransparency = 1, 
+        Transparency = 1 
     })
     guiToTrashTween:Play()
     guiToTrashTween.Completed:Wait()
@@ -437,8 +505,6 @@ local function shutdownScript()
 end
 
 local function animateEntrance()
-    mainFrame.Visible = false
-    
     local brightLight = Instance.new("Frame")
     brightLight.Name = "EntranceLight"
     brightLight.Size = UDim2.new(1, 0, 0.1, 0)
@@ -446,33 +512,38 @@ local function animateEntrance()
     brightLight.BackgroundColor3 = Color3.fromRGB(255, 255, 0)
     brightLight.BackgroundTransparency = 1
     brightLight.BorderSizePixel = 0
-    brightLight.ZIndex = 9
+    brightLight.ZIndex = Z_INDEX_ANIM
     brightLight.Parent = PlayerGui
 
     local lightTween1 = TweenService:Create(brightLight, TweenInfo.new(LIGHT_ANIM_DURATION * 0.7, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-        Position = expandedPosition,
+        Position = UDim2.new(0.05, 0, 0.05, 0), 
+        Size = UDim2.new(0.9, 0, 0.9, 0),      
         BackgroundTransparency = 0.5
     })
     lightTween1:Play()
     lightTween1.Completed:Wait()
 
     local lightTween2 = TweenService:Create(brightLight, TweenInfo.new(LIGHT_ANIM_DURATION * 0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-        Size = UDim2.new(1, 0, 1, 0),
-        BackgroundTransparency = 0,
+        Size = UDim2.new(1, 0, 1, 0), 
+        BackgroundTransparency = 0,    
         BackgroundColor3 = Color3.fromRGB(255, 255, 100)
     })
     lightTween2:Play()
-    
-    mainFrame.Visible = true
-
     lightTween2.Completed:Wait()
 
     local lightTween3 = TweenService:Create(brightLight, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-        BackgroundTransparency = 1,
-        Size = UDim2.new(1,0,0,0)
+        BackgroundTransparency = 1, 
+        Size = UDim2.new(1,0,0,0)  
     })
     lightTween3:Play()
+
+    local guiFadeInTween = TweenService:Create(mainFrame, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+        BackgroundTransparency = 0 
+    })
+    guiFadeInTween:Play()
+    
     lightTween3.Completed:Wait()
+    guiFadeInTween.Completed:Wait() 
 
     brightLight:Destroy()
 end
