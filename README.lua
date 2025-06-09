@@ -1,5 +1,3 @@
--- Script de GUI Compacta para Móvil con Nombre RGB, Vuelo, Animación de Apagado y Animación de Entrada
-
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
@@ -7,35 +5,31 @@ local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
--- === CONFIGURACIÓN GENERAL ===
-local GUI_NAME = "Samu Fly GUI" -- Tu nombre personalizado
-local RGB_SPEED = 0.005 -- Velocidad del cambio de color RGB (menor = más lento)
-local FLY_SPEED = 50 -- Velocidad de vuelo (ajusta este valor)
+local GUI_NAME = "Samu Fly GUI"
+local RGB_SPEED = 0.005
+local FLY_SPEED_VALUE = 50
+local MAX_FLY_SPEED = 100
 
-local TWEEN_INFO_GENERAL = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, 0, false, 0) -- Info para animaciones generales
-local TRASH_ANIM_DURATION = 0.5 -- Duración de la animación de la papelera y el script metiéndose
+local TWEEN_INFO_GENERAL = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, 0, false, 0)
+local TRASH_ANIM_DURATION = 0.5
 
-local LIGHT_ANIM_DURATION = 0.8 -- Duración de la animación de la luz
-local LIGHT_BRIGHTNESS = 2 -- Brillo máximo del destello
+local LIGHT_ANIM_DURATION = 0.8
+local LIGHT_BRIGHTNESS = 2
 
--- === DIMENSIONES Y POSICIONES DE LA GUI PRINCIPAL ===
 local expandedSize = UDim2.new(0.4, 0, 0.32, 0)
-local expandedPosition = UDim2.new(0.3, 0, 0.25, 0) -- Posición final de la GUI
+local expandedPosition = UDim2.new(0.3, 0, 0.25, 0)
 
 local minimizedSize = UDim2.new(0.5, 0, 0.05, 0)
 local minimizedPosition = UDim2.new(0.25, 0, 0.95, 0)
 
--- === VARIABLES DE ESTADO ===
-local isFlying = false
-local flyToggleBtn = nil
-local isDraggingFlyButton = false
-local dragStartPos = Vector2.new(0,0)
-local dragStartButtonPos = UDim2.new(0,0,0,0)
+local isFlyActive = false
+local flyBodyGyro = nil
+local flyBodyVelocity = nil
+local flySpeedCurrent = 0
+local lastFlyControl = {f = 0, b = 0, l = 0, r = 0}
 
--- Almacenar las conexiones para limpiarlas al apagar
 local connections = {}
 
--- === CREACIÓN DE LA GUI PRINCIPAL (Inicialmente invisible) ===
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "SamuFlyGUIMain"
 screenGui.Parent = PlayerGui
@@ -47,13 +41,14 @@ mainFrame.Position = expandedPosition
 mainFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 mainFrame.BorderSizePixel = 0
 mainFrame.Parent = screenGui
-mainFrame.Visible = false -- ¡Ahora empieza invisible!
+mainFrame.Visible = false
+mainFrame.Active = true
+mainFrame.Draggable = true
 
 local uiCorner = Instance.new("UICorner")
 uiCorner.CornerRadius = UDim.new(0, 8)
 uiCorner.Parent = mainFrame
 
--- === BARRA DE TÍTULO ===
 local titleBar = Instance.new("Frame")
 titleBar.Name = "TitleBar"
 titleBar.Size = UDim2.new(1, 0, 0.15, 0)
@@ -74,7 +69,6 @@ titleLabel.Font = Enum.Font.SourceSansBold
 titleLabel.TextXAlignment = Enum.TextXAlignment.Left
 titleLabel.Parent = titleBar
 
--- === BOTÓN MINIMIZAR ===
 local minimizeButton = Instance.new("TextButton")
 minimizeButton.Name = "MinimizeButton"
 minimizeButton.Size = UDim2.new(0.1, 0, 0.8, 0)
@@ -91,7 +85,6 @@ local minCorner = Instance.new("UICorner")
 minCorner.CornerRadius = UDim.new(0, 5)
 minCorner.Parent = minimizeButton
 
--- === CONTENIDO PRINCIPAL DE LA GUI ===
 local contentFrame = Instance.new("Frame")
 contentFrame.Name = "ContentFrame"
 contentFrame.Size = UDim2.new(1, 0, 0.85, 0)
@@ -101,7 +94,6 @@ contentFrame.BorderSizePixel = 0
 contentFrame.Parent = mainFrame
 contentFrame.ClipsDescendants = true
 
--- Botón de ejemplo "Pulsa aquí"
 local toggleButton = Instance.new("TextButton")
 toggleButton.Name = "ToggleButton"
 toggleButton.Size = UDim2.new(0.8, 0, 0.28, 0)
@@ -128,27 +120,24 @@ connections[#connections + 1] = toggleButton.MouseButton1Click:Connect(function(
         toggleButton.Text = "¡Desactivado!"
         toggleButton.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
     end
-    print("El botón de ejemplo ha sido pulsado. Estado: " .. tostring(buttonState))
 end)
 
--- *** BOTÓN "FREE FLY" EN LA GUI PRINCIPAL ***
-local freeFlyActivatorButton = Instance.new("TextButton")
-freeFlyActivatorButton.Name = "FreeFlyActivator"
-freeFlyActivatorButton.Size = UDim2.new(0.8, 0, 0.28, 0)
-freeFlyActivatorButton.Position = UDim2.new(0.1, 0, 0.38, 0)
-freeFlyActivatorButton.BackgroundColor3 = Color3.fromRGB(100, 100, 200)
-freeFlyActivatorButton.Text = "Mostrar/Ocultar Free Fly"
-freeFlyActivatorButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-freeFlyActivatorButton.TextScaled = true
-freeFlyActivatorButton.Font = Enum.Font.SourceSansBold
-freeFlyActivatorButton.BorderSizePixel = 0
-freeFlyActivatorButton.Parent = contentFrame
+local flyToggleBtn = Instance.new("TextButton")
+flyToggleBtn.Name = "ToggleFlyButton"
+flyToggleBtn.Size = UDim2.new(0.8, 0, 0.28, 0)
+flyToggleBtn.Position = UDim2.new(0.1, 0, 0.38, 0)
+flyToggleBtn.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
+flyToggleBtn.Text = "Vuelo: OFF"
+flyToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+flyToggleBtn.TextScaled = true
+flyToggleBtn.Font = Enum.Font.SourceSansBold
+flyToggleBtn.BorderSizePixel = 0
+flyToggleBtn.Parent = contentFrame
 
-local freeFlyBtnCorner = Instance.new("UICorner")
-freeFlyBtnCorner.CornerRadius = UDim.new(0, 6)
-freeFlyBtnCorner.Parent = freeFlyActivatorButton
+local flyBtnCorner = Instance.new("UICorner")
+flyBtnCorner.CornerRadius = UDim.new(0, 6)
+flyBtnCorner.Parent = flyToggleBtn
 
--- *** BOTÓN "APAGAR SCRIPT" ***
 local shutdownButton = Instance.new("TextButton")
 shutdownButton.Name = "ShutdownButton"
 shutdownButton.Size = UDim2.new(0.8, 0, 0.28, 0)
@@ -165,7 +154,6 @@ local shutdownBtnCorner = Instance.new("UICorner")
 shutdownBtnCorner.CornerRadius = UDim.new(0, 6)
 shutdownBtnCorner.Parent = shutdownButton
 
--- === BARRA MINIMIZADA ===
 local minimizedBar = Instance.new("Frame")
 minimizedBar.Name = "MinimizedBar"
 minimizedBar.Size = UDim2.new(1, 0, 1, 0)
@@ -191,7 +179,6 @@ minBarLabel.Font = Enum.Font.SourceSansBold
 minBarLabel.TextXAlignment = Enum.TextXAlignment.Left
 minBarLabel.Parent = minimizedBar
 
--- Botón para expandir (el "↕️" azul)
 local restoreButton = Instance.new("TextButton")
 restoreButton.Name = "RestoreButton"
 restoreButton.Size = UDim2.new(0.2, 0, 1, 0)
@@ -204,7 +191,6 @@ restoreButton.Font = Enum.Font.SourceSansBold
 restoreButton.BorderSizePixel = 0
 restoreButton.Parent = minimizedBar
 
--- === FUNCIONES DE MINIMIZAR Y RESTAURAR GUI PRINCIPAL ===
 local function minimizeGUI()
     local goal = { Size = minimizedSize, Position = minimizedPosition }
     local tween = TweenService:Create(mainFrame, TWEEN_INFO_GENERAL, goal)
@@ -226,170 +212,160 @@ local function restoreGUI()
     minimizedBar.Visible = false
 end
 
--- === LÓGICA DE VUELO (INTEGRADA Y CONTROLADA POR BOTÓN) ===
-local Humanoid = nil
-local RootPart = nil
+local function enableFly()
+    local char = LocalPlayer.Character
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    local rootPart = char:FindFirstChild("HumanoidRootPart")
 
-local function updateFlyStatusText()
-    if flyToggleBtn then
-        flyToggleBtn.Text = "Fly: " .. (isFlying and "ON" or "OFF")
-        flyToggleBtn.BackgroundColor3 = isFlying and Color3.fromRGB(50, 150, 50) or Color3.fromRGB(150, 50, 50)
+    if not hum or not rootPart then return end
+
+    isFlyActive = true
+    flyToggleBtn.Text = "Vuelo: ON"
+    flyToggleBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
+
+    hum:SetStateEnabled(Enum.HumanoidStateType.Climbing, false)
+    hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+    hum:SetStateEnabled(Enum.HumanoidStateType.Flying, false)
+    hum:SetStateEnabled(Enum.HumanoidStateType.Freefall, false)
+    hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, false)
+    hum:SetStateEnabled(Enum.HumanoidStateType.Jumping, false)
+    hum:SetStateEnabled(Enum.HumanoidStateType.Landed, false)
+    hum:SetStateEnabled(Enum.HumanoidStateType.Physics, false)
+    hum:SetStateEnabled(Enum.HumanoidStateType.PlatformStanding, false)
+    hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+    hum:SetStateEnabled(Enum.HumanoidStateType.Running, false)
+    hum:SetStateEnabled(Enum.HumanoidStateType.RunningNoPhysics, false)
+    hum:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
+    hum:SetStateEnabled(Enum.HumanoidStateType.StrafingNoPhysics, false)
+    hum:SetStateEnabled(Enum.HumanoidStateType.Swimming, false)
+    hum:ChangeState(Enum.HumanoidStateType.Swimming)
+
+    char.Animate.Disabled = true
+    for i,v in next, hum:GetPlayingAnimationTracks() do
+        v:AdjustSpeed(0)
     end
-end
 
-local function toggleFly()
-    if not LocalPlayer.Character then return end
+    hum.PlatformStand = true
 
-    Humanoid = LocalPlayer.Character:FindFirstChild("Humanoid")
-    RootPart = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    local upperTorso = char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso")
+    if upperTorso then
+        flyBodyGyro = Instance.new("BodyGyro", upperTorso)
+        flyBodyGyro.P = 9e4
+        flyBodyGyro.maxTorque = Vector3.new(9e9, 9e9, 9e9)
+        flyBodyGyro.CFrame = upperTorso.CFrame
 
-    if not Humanoid or not RootPart then
-        warn("No se pudo encontrar Humanoid o HumanoidRootPart para volar.")
-        return
-    end
-
-    isFlying = not isFlying
-    updateFlyStatusText()
-
-    if isFlying then
-        Humanoid.WalkSpeed = 0
-        Humanoid.JumpPower = 0
-        RootPart.Anchored = true
-        print("Vuelo activado.")
+        flyBodyVelocity = Instance.new("BodyVelocity", upperTorso)
+        flyBodyVelocity.Velocity = Vector3.new(0, 0.1, 0)
+        flyBodyVelocity.MaxForce = Vector3.new(9e9, 9e9, 9e9)
     else
-        Humanoid.WalkSpeed = 16
-        Humanoid.JumpPower = 50
-        RootPart.Anchored = false
-        RootPart.Velocity = Vector3.new(0,0,0)
-        print("Vuelo desactivado.")
+        rootPart.Anchored = true
     end
 end
 
--- === CREACIÓN Y LÓGICA DEL BOTÓN FLOTANTE DE VUELO ===
-local function createFlyToggleButton()
-    if flyToggleBtn then return end
+local function disableFly()
+    local char = LocalPlayer.Character
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    local rootPart = char:FindFirstChild("HumanoidRootPart")
 
-    flyToggleBtn = Instance.new("TextButton")
-    flyToggleBtn.Name = "FlyToggleButton"
-    flyToggleBtn.Size = UDim2.new(0.12, 0, 0.08, 0)
-    flyToggleBtn.Position = UDim2.new(0.05, 0, 0.4, 0)
+    if not hum or not rootPart then return end
+
+    isFlyActive = false
+    flyToggleBtn.Text = "Vuelo: OFF"
     flyToggleBtn.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
-    flyToggleBtn.Text = "Fly: OFF"
-    flyToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    flyToggleBtn.TextScaled = true
-    flyToggleBtn.Font = Enum.Font.SourceSansBold
-    flyToggleBtn.BorderSizePixel = 0
-    flyToggleBtn.Parent = PlayerGui
 
-    local flyBtnCorner = Instance.new("UICorner")
-    flyBtnCorner.CornerRadius = UDim.new(0, 8)
-    flyBtnCorner.Parent = flyToggleBtn
+    hum:SetStateEnabled(Enum.HumanoidStateType.Climbing, true)
+    hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true)
+    hum:SetStateEnabled(Enum.HumanoidStateType.Flying, true)
+    hum:SetStateEnabled(Enum.HumanoidStateType.Freefall, true)
+    hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
+    hum:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
+    hum:SetStateEnabled(Enum.HumanoidStateType.Landed, true)
+    hum:SetStateEnabled(Enum.HumanoidStateType.Physics, true)
+    hum:SetStateEnabled(Enum.HumanoidStateType.PlatformStanding, true)
+    hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, true)
+    hum:SetStateEnabled(Enum.HumanoidStateType.Running, true)
+    hum:SetStateEnabled(Enum.HumanoidStateType.RunningNoPhysics, true)
+    hum:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
+    hum:SetStateEnabled(Enum.HumanoidStateType.StrafingNoPhysics, true)
+    hum:SetStateEnabled(Enum.HumanoidStateType.Swimming, true)
+    hum:ChangeState(Enum.HumanoidStateType.Running)
 
-    local dragConnection1 = nil
-    local dragConnection2 = nil
-
-    dragConnection1 = flyToggleBtn.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            isDraggingFlyButton = true
-            dragStartPos = UserInputService:GetMouseLocation()
-            dragStartButtonPos = flyToggleBtn.Position
-            
-            dragConnection2 = UserInputService.InputChanged:Connect(function(input2)
-                if isDraggingFlyButton and (input2.UserInputType == Enum.UserInputType.MouseMovement or input2.UserInputType == Enum.UserInputType.Touch) then
-                    local currentMousePos = UserInputService:GetMouseLocation()
-                    local delta = currentMousePos - dragStartPos
-
-                    local newPosX = dragStartButtonPos.X.Offset + delta.X
-                    local newPosY = dragStartButtonPos.Y.Offset + delta.Y
-
-                    newPosX = math.max(0, math.min(newPosX, PlayerGui.AbsoluteSize.X - flyToggleBtn.AbsoluteSize.X))
-                    newPosY = math.max(0, math.min(newPosY, PlayerGui.AbsoluteSize.Y - flyToggleBtn.AbsoluteSize.Y))
-
-                    flyToggleBtn.Position = UDim2.new(0, newPosX, 0, newPosY)
-                end
-            end)
-            connections[#connections + 1] = dragConnection2
-        end
-    end)
-    connections[#connections + 1] = dragConnection1
-
-    local dragConnection3 = UserInputService.InputEnded:Connect(function(input)
-        if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) and isDraggingFlyButton then
-            isDraggingFlyButton = false
-        end
-    end)
-    connections[#connections + 1] = dragConnection3
-
-    connections[#connections + 1] = flyToggleBtn.MouseButton1Click:Connect(toggleFly)
-end
-
-local function destroyFlyToggleButton()
-    if flyToggleBtn then
-        flyToggleBtn:Destroy()
-        flyToggleBtn = nil
-        isFlying = false
-        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-            LocalPlayer.Character.Humanoid.WalkSpeed = 16
-            LocalPlayer.Character.Humanoid.JumpPower = 50
-            if LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                LocalPlayer.Character.HumanoidRootPart.Anchored = false
-                LocalPlayer.Character.HumanoidRootPart.Velocity = Vector3.new(0,0,0)
-            end
-        end
-        print("Botón de vuelo destruido y vuelo desactivado.")
+    char.Animate.Disabled = false
+    for i,v in next, hum:GetPlayingAnimationTracks() do
+        v:AdjustSpeed(1)
     end
+
+    hum.PlatformStand = false
+
+    if flyBodyGyro then flyBodyGyro:Destroy() flyBodyGyro = nil end
+    if flyBodyVelocity then flyBodyVelocity:Destroy() flyBodyVelocity = nil end
+    
+    rootPart.Velocity = Vector3.new(0,0,0)
 end
 
-connections[#connections + 1] = freeFlyActivatorButton.MouseButton1Click:Connect(function()
-    if flyToggleBtn then
-        destroyFlyToggleButton()
-    else
-        createFlyToggleButton()
+connections[#connections + 1] = LocalPlayer.CharacterAdded:Connect(function(char)
+    if isFlyActive then
+        disableFly()
     end
 end)
 
+connections[#connections + 1] = flyToggleBtn.MouseButton1Click:Connect(function()
+    if isFlyActive then
+        disableFly()
+    else
+        enableFly()
+    end
+end)
 
--- === LÓGICA DE MOVIMIENTO DE VUELO (WASD, Q, E) ===
 local flyRenderSteppedConnection = RunService.RenderStepped:Connect(function()
-    if isFlying and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-        local rootPart = LocalPlayer.Character.HumanoidRootPart
-        local direction = Vector3.new(0,0,0)
+    if isFlyActive and LocalPlayer.Character then
+        local char = LocalPlayer.Character
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        local rootPart = char:FindFirstChild("HumanoidRootPart")
+        local upperTorso = char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso")
 
-        if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-            direction = direction + rootPart.CFrame.lookVector
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-            direction = direction - rootPart.CFrame.lookVector
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.A) then
-            direction = direction - rootPart.CFrame.rightVector
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.D) then
-            direction = direction + rootPart.CFrame.rightVector
+        if not hum or not rootPart or not upperTorso or not flyBodyGyro or not flyBodyVelocity then return end
+
+        local ctrl = {f = 0, b = 0, l = 0, r = 0}
+
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then ctrl.f = 1 end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then ctrl.b = -1 end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then ctrl.l = -1 end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then ctrl.r = 1 end
+
+        if ctrl.l + ctrl.r ~= 0 or ctrl.f + ctrl.b ~= 0 then
+            flySpeedCurrent = math.min(MAX_FLY_SPEED, flySpeedCurrent + 0.5 + (flySpeedCurrent / FLY_SPEED_VALUE))
+            lastFlyControl = {f = ctrl.f, b = ctrl.b, l = ctrl.l, r = ctrl.r}
+        elseif flySpeedCurrent ~= 0 then
+            flySpeedCurrent = math.max(0, flySpeedCurrent - 1)
         end
 
-        local verticalSpeed = 0
+        local currentCameraCFrame = game.Workspace.CurrentCamera.CFrame
+        local targetVelocity = Vector3.new(0,0,0)
+
+        if (ctrl.l + ctrl.r) ~= 0 or (ctrl.f + ctrl.b) ~= 0 then
+            targetVelocity = ((currentCameraCFrame.lookVector * (ctrl.f + ctrl.b)) +
+                             ((currentCameraCFrame * CFrame.new(ctrl.l + ctrl.r, (ctrl.f + ctrl.b) * 0.2, 0)).p - currentCameraCFrame.p)) * flySpeedCurrent
+        elseif flySpeedCurrent ~= 0 then
+            targetVelocity = ((currentCameraCFrame.lookVector * (lastFlyControl.f + lastFlyControl.b)) +
+                             ((currentCameraCFrame * CFrame.new(lastFlyControl.l + lastFlyControl.r, (lastFlyControl.f + lastFlyControl.b) * 0.2, 0)).p - currentCameraCFrame.p)) * flySpeedCurrent
+        end
+
+        local verticalSpeedInput = 0
         if UserInputService:IsKeyDown(Enum.KeyCode.E) then
-            verticalSpeed = FLY_SPEED
+            verticalSpeedInput = FLY_SPEED_VALUE
         elseif UserInputService:IsKeyDown(Enum.KeyCode.Q) then
-            verticalSpeed = -FLY_SPEED
+            verticalSpeedInput = -FLY_SPEED_VALUE
         end
 
-        if direction.Magnitude > 0 or verticalSpeed ~= 0 then
-            local currentVerticalVelocity = rootPart.Velocity.Y
-            if verticalSpeed == 0 then
-                verticalSpeed = currentVerticalVelocity
-            end
-            rootPart.Velocity = (direction.Unit * FLY_SPEED) + Vector3.new(0, verticalSpeed, 0)
-        else
-            rootPart.Velocity = Vector3.new(0,0,0)
-        end
+        flyBodyVelocity.Velocity = targetVelocity + Vector3.new(0, verticalSpeedInput, 0)
+        flyBodyGyro.CFrame = currentCameraCFrame * CFrame.Angles(-math.rad((ctrl.f + ctrl.b) * 50 * flySpeedCurrent / MAX_FLY_SPEED), 0, 0)
     end
 end)
 connections[#connections + 1] = flyRenderSteppedConnection
 
-
--- === EFECTO RGB PARA EL NOMBRE DE LA GUI ===
 local hue = 0
 local rgbRenderSteppedConnection = RunService.RenderStepped:Connect(function(dt)
     hue = hue + (dt * RGB_SPEED)
@@ -407,38 +383,30 @@ local rgbRenderSteppedConnection = RunService.RenderStepped:Connect(function(dt)
 end)
 connections[#connections + 1] = rgbRenderSteppedConnection
 
--- === ANIMACIÓN Y FUNCIÓN DE APAGADO Y LIMPIEZA DEL SCRIPT ===
 local function shutdownScript()
-    -- 1. Desactivar el vuelo y limpiar si está activo
-    if isFlying then
-        toggleFly()
+    if isFlyActive then
+        disableFly()
     end
-    -- 2. Destruir el botón flotante de vuelo si existe
-    destroyFlyToggleButton()
 
-    -- Bloquear el botón de apagado para evitar pulsaciones múltiples
     shutdownButton.Active = false
     shutdownButton.Text = "Apagando..."
-    mainFrame.Active = false -- Desactivar interacción con la GUI
+    mainFrame.Active = false
+    mainFrame.Draggable = false
 
-    -- Crear la papelera
     local trashCan = Instance.new("ImageLabel")
     trashCan.Name = "TrashCanAnim"
     trashCan.Size = UDim2.new(0.3, 0, 0.4, 0)
-    trashCan.Position = UDim2.new(-trashCan.Size.X.Scale, 0, 0.3, 0) -- Inicia completamente fuera
+    trashCan.Position = UDim2.new(-trashCan.Size.X.Scale, 0, 0.3, 0)
     trashCan.BackgroundTransparency = 1
-    trashCan.Image = "rbxassetid://13217277873" -- ID de una imagen de papelera (Roblox default si existe, o buscar una)
+    trashCan.Image = "rbxassetid://13217277873"
     trashCan.ScaleType = Enum.ScaleType.Fit
     trashCan.ZIndex = 10
     trashCan.Parent = PlayerGui
 
-    -- Animar la papelera para que entre en la pantalla
     local trashTween = TweenService:Create(trashCan, TweenInfo.new(TRASH_ANIM_DURATION / 2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = UDim2.new(0.05, 0, 0.3, 0)})
     trashTween:Play()
     trashTween.Completed:Wait()
 
-    -- Animar la GUI para que se mueva hacia la papelera
-    -- Calcular la posición objetivo de la GUI para que entre en la papelera
     local trashCanAbsPos = trashCan.AbsolutePosition
     local trashCanAbsSize = trashCan.AbsoluteSize
     
@@ -447,14 +415,13 @@ local function shutdownScript()
 
     local guiToTrashTween = TweenService:Create(mainFrame, TweenInfo.new(TRASH_ANIM_DURATION / 2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
         Position = UDim2.new(0, targetXOffset, 0, targetYOffset),
-        Size = UDim2.new(0.05, 0, 0.05, 0), -- Hacerla pequeña
+        Size = UDim2.new(0.05, 0, 0.05, 0),
         BackgroundTransparency = 1,
         Transparency = 1
     })
     guiToTrashTween:Play()
     guiToTrashTween.Completed:Wait()
 
-    -- Limpieza final del script
     trashCan:Destroy()
 
     for _, conn in ipairs(connections) do
@@ -467,66 +434,51 @@ local function shutdownScript()
     if screenGui and screenGui.Parent then
         screenGui:Destroy()
     end
-
-    print("Script 'Samu Fly GUI' apagado y eliminado con animación. ¡Hasta la próxima!")
 end
 
--- === ANIMACIÓN DE ENTRADA AL EJECUTAR EL SCRIPT ===
 local function animateEntrance()
-    mainFrame.Visible = false -- Asegurarse de que esté invisible al principio
-    local originalPos = expandedPosition
+    mainFrame.Visible = false
     
-    -- Crear la luz amarilla
     local brightLight = Instance.new("Frame")
     brightLight.Name = "EntranceLight"
-    brightLight.Size = UDim2.new(1, 0, 0.1, 0) -- Barra de luz que baja
-    brightLight.Position = UDim2.new(0, 0, -0.1, 0) -- Empieza fuera de la pantalla por arriba
-    brightLight.BackgroundColor3 = Color3.fromRGB(255, 255, 0) -- Amarillo
-    brightLight.BackgroundTransparency = 1 -- Empieza transparente
+    brightLight.Size = UDim2.new(1, 0, 0.1, 0)
+    brightLight.Position = UDim2.new(0, 0, -0.1, 0)
+    brightLight.BackgroundColor3 = Color3.fromRGB(255, 255, 0)
+    brightLight.BackgroundTransparency = 1
     brightLight.BorderSizePixel = 0
-    brightLight.ZIndex = 9 -- Justo debajo de la GUI
+    brightLight.ZIndex = 9
     brightLight.Parent = PlayerGui
 
-    -- Animar la luz bajando y volviéndose visible
     local lightTween1 = TweenService:Create(brightLight, TweenInfo.new(LIGHT_ANIM_DURATION * 0.7, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-        Position = expandedPosition, -- Baja hasta la posición de la GUI
-        BackgroundTransparency = 0.5 -- Se vuelve semitransparente
+        Position = expandedPosition,
+        BackgroundTransparency = 0.5
     })
     lightTween1:Play()
     lightTween1.Completed:Wait()
 
-    -- Destello fuerte (se hace más brillante y luego se desvanece rápido)
     local lightTween2 = TweenService:Create(brightLight, TweenInfo.new(LIGHT_ANIM_DURATION * 0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-        Size = UDim2.new(1, 0, 1, 0), -- Se expande para un destello
-        BackgroundTransparency = 0, -- Totalmente opaca para el brillo máximo
-        BackgroundColor3 = Color3.fromRGB(255, 255, 100) -- Un amarillo más claro para el destello
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 0,
+        BackgroundColor3 = Color3.fromRGB(255, 255, 100)
     })
     lightTween2:Play()
     
-    -- Hacer visible el script principal
     mainFrame.Visible = true
 
     lightTween2.Completed:Wait()
 
-    -- Destello se desvanece
     local lightTween3 = TweenService:Create(brightLight, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-        BackgroundTransparency = 1, -- Se vuelve transparente
-        Size = UDim2.new(1,0,0,0) -- Se encoge
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1,0,0,0)
     })
     lightTween3:Play()
     lightTween3.Completed:Wait()
 
-    brightLight:Destroy() -- Eliminar la luz
-
-    print("Animación de entrada completada. GUI lista.")
+    brightLight:Destroy()
 end
 
--- === CONEXIONES INICIALES AL CARGAR EL SCRIPT ===
 connections[#connections + 1] = minimizeButton.MouseButton1Click:Connect(minimizeGUI)
 connections[#connections + 1] = restoreButton.MouseButton1Click:Connect(restoreGUI)
 connections[#connections + 1] = shutdownButton.MouseButton1Click:Connect(shutdownScript)
 
--- Llamar a la animación de entrada al principio del script
 animateEntrance()
-
-print("GUI 'Samu Fly GUI' cargada con animaciones de entrada y apagado.")
